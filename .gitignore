@@ -1,0 +1,28 @@
+# Virtual environments
+rafiq/
+venv/
+.venv/
+env/
+
+# Python cache & build
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.pytest_cache/
+
+# Audio recordings
+esp32_socket/recordings/*/*.wav
+
+# Environment variables
+.env
+*.env
+!python_backend/.env.example
+
+# IDE and OS files
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db

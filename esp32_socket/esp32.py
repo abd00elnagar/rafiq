@@ -1,4 +1,3 @@
-
 import asyncio
 import os
 from pathlib import Path
@@ -27,12 +26,14 @@ ENV_PATH = (
 
 load_dotenv(ENV_PATH, override=True)
 
-LIVEKIT_URL = os.getenv("LIVEKIT_URL")
-API_KEY = os.getenv("LIVEKIT_API_KEY")
-API_SECRET = os.getenv("LIVEKIT_API_SECRET")
+LIVEKIT_URL = os.getenv("LIVEKIT_URL", "")
+API_KEY = os.getenv("LIVEKIT_API_KEY", "")
+API_SECRET = os.getenv("LIVEKIT_API_SECRET", "")
 
-if not all([LIVEKIT_URL, API_KEY, API_SECRET]):
-    raise ValueError("Missing LiveKit credentials in .env")
+
+def validate_credentials():
+    if not all([LIVEKIT_URL, API_KEY, API_SECRET]):
+        raise ValueError("Missing LiveKit credentials in .env")
 
 
 ROOM_NAME = "esp32-test-room"
@@ -93,6 +94,7 @@ def save_audio(audio_data, folder, prefix, sample_rate=SAMPLE_RATE):
 # ==========================================
 
 def create_token():
+    validate_credentials()
 
     token = (
         api.AccessToken(API_KEY, API_SECRET)
@@ -114,6 +116,7 @@ def create_token():
 # ==========================================
 
 async def main():
+    validate_credentials()
 
     loop = asyncio.get_running_loop()
 
@@ -312,7 +315,10 @@ async def main():
         )
 
         await room.disconnect()
-        audio_source.close()
+        if hasattr(audio_source, "aclose"):
+            await audio_source.aclose()
+        elif hasattr(audio_source, "close"):
+            audio_source.close()
 
         print("Recordings saved successfully!")
 
