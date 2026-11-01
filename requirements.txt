@@ -3,5 +3,6 @@ faster-whisper>=1.0.0
 edge-tts>=6.1.0
 openai>=1.0.0
 python-dotenv>=1.0.0
+gradio_client>=2.0.0
 numpy
 sounddevice

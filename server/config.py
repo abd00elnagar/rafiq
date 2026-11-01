@@ -77,6 +77,7 @@ LLM_MODEL = os.getenv("LLM_MODEL", "nvidia/nemotron-3.5-lightning:free")
 SYSTEM_PROMPT = get_system_prompt(LANGUAGE)
 
 # ---- TTS ----
+TTS_PROVIDER = os.getenv("TTS_PROVIDER", "namaa").lower().strip()
 TTS_VOICE = get_tts_voice(LANGUAGE)
 
 
