@@ -15,10 +15,11 @@ def _get_model():
     return _model
 
 
-def transcribe(pcm: bytes) -> str:
+def transcribe(pcm: bytes, language: str = None) -> str:
     """pcm = raw 16-bit mono 16kHz."""
+    lang = language or config.STT_LANGUAGE
     audio = np.frombuffer(pcm, dtype=np.int16).astype(np.float32) / 32768.0
-    segments, _ = _get_model().transcribe(audio, language=config.STT_LANGUAGE, vad_filter=True)
+    segments, _ = _get_model().transcribe(audio, language=lang, vad_filter=True)
     return " ".join(s.text.strip() for s in segments).strip()
 
 

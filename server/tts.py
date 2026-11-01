@@ -6,7 +6,8 @@ import edge_tts
 from . import config
 
 
-async def synth(text: str):
+async def synth(text: str, voice: str = None):
+    v = voice or config.TTS_VOICE
     proc = await asyncio.create_subprocess_exec(
         "ffmpeg", "-loglevel", "quiet", "-i", "pipe:0",
         "-f", "s16le", "-ar", str(config.SAMPLE_RATE), "-ac", "1", "pipe:1",
@@ -14,7 +15,7 @@ async def synth(text: str):
     )
 
     async def feed():
-        async for part in edge_tts.Communicate(text, config.TTS_VOICE).stream():
+        async for part in edge_tts.Communicate(text, v).stream():
             if part["type"] == "audio":
                 proc.stdin.write(part["data"])
                 await proc.stdin.drain()

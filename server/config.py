@@ -26,22 +26,57 @@ CHUNK_BYTES = SAMPLE_RATE * CHUNK_MS // 1000 * 2   # 16-bit mono = 2 bytes/sampl
 HOST = os.getenv("HOST", "0.0.0.0")
 PORT = int(os.getenv("PORT", "8765"))
 
+# ---- Language Configuration ----
+# Supported options: 'ar' (Arabic) or 'en' (English)
+LANGUAGE = os.getenv("LANGUAGE", "ar").lower().strip()
+
+TTS_VOICES = {
+    "ar": os.getenv("TTS_VOICE", "ar-EG-SalmaNeural"),
+    "en": "en-US-JennyNeural",
+}
+
+
+def get_system_prompt(lang: str = "ar") -> str:
+    lang = (lang or "ar").lower().strip()
+    if lang == "ar":
+        return (
+            "You are Rafiq (رفيق), a friendly voice assistant. "
+            "You MUST respond ONLY in natural Egyptian Arabic (اللهجة العامية المصرية). "
+            "STRICT RULES: "
+            "1. NEVER output Chinese, Japanese, Hebrew, or any foreign scripts. "
+            "2. Keep your answer strictly to one or two short sentences, suitable to be read aloud. "
+            "3. Do NOT use markdown, emojis, asterisks, bullet points, or symbols."
+        )
+    else:
+        return (
+            "You are Rafiq, a friendly voice assistant. "
+            "You MUST respond in natural English. "
+            "STRICT RULES: "
+            "1. Keep your answer strictly to one or two short sentences, suitable to be read aloud. "
+            "2. Do NOT use markdown, emojis, asterisks, bullet points, or symbols."
+        )
+
+
+def get_tts_voice(lang: str = "ar") -> str:
+    return TTS_VOICES.get((lang or "ar").lower().strip(), TTS_VOICES["ar"])
+
+
+def get_stt_language(lang: str = "ar") -> str:
+    return "ar" if (lang or "ar").lower().strip() == "ar" else "en"
+
+
 # ---- STT ----
 WHISPER_MODEL = os.getenv("WHISPER_MODEL", "small")   # base / small / medium
 WHISPER_DEVICE = os.getenv("WHISPER_DEVICE", "cpu")   # cpu or cuda
-STT_LANGUAGE = os.getenv("STT_LANGUAGE", "ar")        # None = auto-detect
+STT_LANGUAGE = os.getenv("STT_LANGUAGE", get_stt_language(LANGUAGE))
 
 # ---- LLM (OpenRouter) ----
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
 OPENROUTER_BASE_URL = os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
 LLM_MODEL = os.getenv("LLM_MODEL", "nvidia/nemotron-3.5-lightning:free")
-SYSTEM_PROMPT = (
-    "You are a voice assistant like Alexa. Your responses must be short (one or two sentences) "
-    "without markdown, symbols, or lists, because the response will be read aloud. "
-    "Respond in the same language as the user, and in Egyptian Arabic if spoken to in it."
-)
+SYSTEM_PROMPT = get_system_prompt(LANGUAGE)
 
 # ---- TTS ----
-TTS_VOICE = os.getenv("TTS_VOICE", "ar-EG-SalmaNeural")   # or ar-EG-ShakirNeural
+TTS_VOICE = get_tts_voice(LANGUAGE)
 
 
