@@ -6,6 +6,17 @@ from dotenv import load_dotenv
 BASE_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(BASE_DIR / ".env")
 
+# Ensure ffmpeg in user PATH is discovered on Windows even without terminal restart
+import shutil
+if os.name == "nt" and not shutil.which("ffmpeg"):
+    try:
+        import winreg
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Environment") as _k:
+            _reg_path, _ = winreg.QueryValueEx(_k, "Path")
+            os.environ["PATH"] = _reg_path + os.pathsep + os.environ.get("PATH", "")
+    except Exception:
+        pass
+
 # ---- Audio contract (must match on ESP32 and server) ----
 SAMPLE_RATE = 16000      # Hz
 CHUNK_MS = 40            # Audio packet size in milliseconds
@@ -23,7 +34,7 @@ STT_LANGUAGE = os.getenv("STT_LANGUAGE", "ar")        # None = auto-detect
 # ---- LLM (OpenRouter) ----
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
 OPENROUTER_BASE_URL = os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
-LLM_MODEL = os.getenv("LLM_MODEL", "anthropic/claude-3.5-sonnet")
+LLM_MODEL = os.getenv("LLM_MODEL", "nvidia/nemotron-3.5-lightning:free")
 SYSTEM_PROMPT = (
     "You are a voice assistant like Alexa. Your responses must be short (one or two sentences) "
     "without markdown, symbols, or lists, because the response will be read aloud. "

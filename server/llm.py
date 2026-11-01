@@ -26,12 +26,18 @@ class LLM:
         self.history.append({"role": "user", "content": user_text})
         messages = [{"role": "system", "content": config.SYSTEM_PROMPT}] + self.history[-20:]
         
-        resp = self.client.chat.completions.create(
-            model=config.LLM_MODEL,
-            max_tokens=300,
-            messages=messages,
-        )
-        text = (resp.choices[0].message.content or "").strip()
+        create_kwargs = {
+            "model": config.LLM_MODEL,
+            "max_tokens": 300,
+            "messages": messages,
+        }
+        # Disable excessive reasoning tokens for reasoning models so responses remain fast and direct
+        if ":free" in config.LLM_MODEL or "nemotron" in config.LLM_MODEL.lower():
+            create_kwargs["extra_body"] = {"reasoning": {"max_tokens": 0}}
+
+        resp = self.client.chat.completions.create(**create_kwargs)
+        msg = resp.choices[0].message
+        text = (msg.content or getattr(msg, "reasoning", "") or "").strip()
         self.history.append({"role": "assistant", "content": text})
         return text
 
