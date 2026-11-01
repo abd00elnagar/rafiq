@@ -11,12 +11,14 @@ __pycache__/
 *.so
 .pytest_cache/
 
-# Audio recordings
+# Audio recordings & test outputs
 esp32_socket/recordings/*/*.wav
+*.pcm
 
 # Environment variables
 .env
 *.env
+!.env.example
 !python_backend/.env.example
 
 # IDE and OS files
