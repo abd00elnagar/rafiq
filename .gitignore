@@ -28,3 +28,4 @@ esp32_socket/recordings/*/*.wav
 *.swo
 .DS_Store
 Thumbs.db
+audio_samples/

@@ -6,14 +6,100 @@ from openai import OpenAI
 from . import config
 
 
+AR_NUM_MAP = {
+    "0": "صفر", "1": "واحد", "2": "اتنين", "3": "تلاتة", "4": "أربعة",
+    "5": "خمسة", "6": "ستة", "7": "سبعة", "8": "تمانية", "9": "تسعة",
+    "10": "عشرة", "11": "حداشر", "12": "اتناشر", "13": "تلاتاشر", "14": "اربعتاشر",
+    "15": "خمستاشر", "16": "ستاشر", "17": "سبعتاشر", "18": "تمنتاشر", "19": "تسعتاشر",
+    "20": "عشرين", "25": "خمسة وعشرين", "30": "تلاتين", "40": "أربعين", "50": "خمسين",
+    "60": "ستين", "70": "سبعين", "80": "تمانين", "90": "تسعين",
+    "100": "مية", "150": "مية وخمسين", "200": "ميتين", "500": "خمسمية", "1000": "ألف"
+}
+
+AR_COLLOQUIAL_MAP = {
+    r"\bكده\b": "كدا",
+    r"\bده\b": "دا",
+    r"\bعلشان\b": "عشان",
+    r"\bمفيش\b": "مافيش",
+}
+
+TECH_TERMS_MAP = {
+    r"\bwi-?fi\b": "واي فاي",
+    r"\bpdf\b": "بي دي إف",
+    r"\bok(?:ay)?\b": "أوكي",
+    r"\bwhatsapp\b": "واتساب",
+    r"\bapp\b": "أبلكيشن",
+    r"\bmeeting\b": "ميتنج",
+    r"\blocation\b": "لوكيشن",
+    r"\blink\b": "لينك",
+    r"\bgps\b": "جي بي إس",
+    r"\busb\b": "يو إس بي",
+    r"\bai\b": "ذكاء اصطناعي",
+}
+
+EN_DIGITS_MAP = {
+    "0": "zero", "1": "one", "2": "two", "3": "three", "4": "four",
+    "5": "five", "6": "six", "7": "seven", "8": "eight", "9": "nine", "10": "ten"
+}
+
+
 def clean_text(text: str, lang: str = "ar") -> str:
-    """Remove rogue foreign scripts and markdown formatting."""
+    """Deterministic Voice Shield: Sanitize and normalize text for flawless TTS synthesis."""
     if not text:
         return ""
-    # Strip CJK (Chinese, Japanese, Korean), Hebrew, and Cyrillic glyphs
+    lang = (lang or "ar").lower().strip()
+
+    # 1. Strip emojis and pictographs
+    text = re.sub(r'[\U00010000-\U0010ffff\u2600-\u27bf\u2300-\u23ff\u2b50\u200d\ufe0f]', '', text)
+
+    # 2. Strip foreign non-Arabic/non-Latin scripts (CJK, Hebrew, Cyrillic)
     text = re.sub(r'[\u4e00-\u9fff\u3040-\u30ff\u3400-\u4dbf\u0590-\u05ff\u0400-\u04ff]', '', text)
-    # Strip markdown symbols
-    text = re.sub(r'[*_#`~\[\]]', '', text)
+
+    # 3. Strip markdown syntax, brackets, quotes, dashes and colons (preserve contractions like didn't)
+    text = re.sub(r'[*_#`~\[\]{}()<>\\/|^+=–—\":]', ' ', text)
+    text = re.sub(r"(?<![a-zA-Z])'|'(?![a-zA-Z])", ' ', text)
+
+    if lang == "ar":
+        # 4a. Translate Eastern Arabic numerals (٠-٩) to standard digits
+        eastern_digits = str.maketrans("٠١٢٣٤٥٦٧٨٩", "0123456789")
+        text = text.translate(eastern_digits)
+
+        # 4b. Symbols to spoken Arabic
+        text = text.replace("%", " في المية ").replace("$", " دولار ").replace("£", " جنيه ")
+
+        # 4c. Egyptian colloquial phonetics
+        for pat, repl in AR_COLLOQUIAL_MAP.items():
+            text = re.sub(pat, repl, text)
+
+        # 4d. Transliterate English tech acronyms into Arabic script
+        for pat, repl in TECH_TERMS_MAP.items():
+            text = re.sub(pat, repl, text, flags=re.IGNORECASE)
+
+        # 4e. Remove any remaining raw Latin letters/words in Arabic mode to prevent TTS corruption
+        text = re.sub(r'[a-zA-Z]+', '', text)
+
+        # 4f. Digits to Egyptian spoken words
+        for num, word in sorted(AR_NUM_MAP.items(), key=lambda x: len(x[0]), reverse=True):
+            text = re.sub(rf'\b{num}\b', f' {word} ', text)
+        for d, w in [("0", "صفر"), ("1", "واحد"), ("2", "اتنين"), ("3", "تلاتة"), ("4", "أربعة"),
+                    ("5", "خمسة"), ("6", "ستة"), ("7", "سبعة"), ("8", "تمانية"), ("9", "تسعة")]:
+            text = text.replace(d, f' {w} ')
+    else:
+        # 5. English symbol and currency expansions
+        text = re.sub(r'\$(\d+)', r'\1 dollars', text)
+        text = text.replace("$", " dollars ")
+        text = re.sub(r'(\d+)%', r'\1 percent', text)
+        text = text.replace("%", " percent ").replace("&", " and ")
+        for d, w in EN_DIGITS_MAP.items():
+            text = re.sub(rf'\b{d}\b', f' {w} ', text)
+
+    # 6. Normalize punctuation (collapse multiple punctuation into natural speech pauses)
+    text = re.sub(r'\?+', '?', text)
+    text = re.sub(r'!+', '!', text)
+    text = re.sub(r'\.+', '.', text)
+    text = re.sub(r',+', ',', text)
+
+    # 7. Collapse spaces
     return " ".join(text.split()).strip()
 
 

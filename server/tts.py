@@ -16,7 +16,11 @@ def _get_namaa_client():
     global _namaa_client
     if _namaa_client is None:
         from gradio_client import Client
-        _namaa_client = Client("omarelshehy/NAMAA-Egyptian-Voice")
+        hf_token = os.getenv("HF_TOKEN", "").strip() or None
+        try:
+            _namaa_client = Client("omarelshehy/NAMAA-Egyptian-Voice", token=hf_token)
+        except TypeError:
+            _namaa_client = Client("omarelshehy/NAMAA-Egyptian-Voice", hf_token=hf_token)
     return _namaa_client
 
 
@@ -76,7 +80,7 @@ async def synth(text: str, voice: str = None):
     v = voice or config.TTS_VOICE
     use_namaa = (
         getattr(config, "TTS_PROVIDER", "namaa") == "namaa"
-        and ("ar" in (v or "").lower() or config.LANGUAGE == "ar")
+        and "ar" in (v or "").lower()
     )
 
     if use_namaa:
