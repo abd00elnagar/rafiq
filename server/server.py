@@ -72,6 +72,20 @@ async def handler(ws):
             elif data["type"] == "end":
                 pcm, buf = bytes(buf), bytearray()
                 await run_turn(ws, llm, pcm, current_lang, current_voice)
+            elif data["type"] == "text":
+                user_text = data.get("text", "").strip()
+                if user_text:
+                    await ws.send(json.dumps({"type": "transcript", "role": "user", "text": user_text}))
+                    await send_state(ws, "thinking")
+                    answer = await asyncio.to_thread(llm.reply, user_text, current_lang)
+                    print(f"[LLM ({current_lang})] {answer!r}")
+                    await ws.send(json.dumps({"type": "transcript", "role": "assistant", "text": answer}))
+                    await send_state(ws, "speaking")
+                    tts_voice = config.get_tts_voice(current_lang, voice_id=current_voice)
+                    async for chunk in tts.synth(answer, voice=tts_voice):
+                        await ws.send(chunk)
+                    await ws.send(json.dumps({"type": "tts_end"}))
+                    await send_state(ws, "idle")
     except websockets.ConnectionClosed:
         pass
     print("[-] client disconnected")

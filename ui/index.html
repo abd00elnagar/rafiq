@@ -1,0 +1,764 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>رفيق - المساعد الصوتي | Rafiq Voice AI</title>
+  <script src="https://www.gstatic.com/antigravity/web/dev/tailwindcss.min.js"></script>
+  <style>
+    .glass-pill {
+      background: rgba(255, 255, 255, 0.04);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    .glass-pill:hover {
+      background: rgba(255, 255, 255, 0.07);
+      border-color: rgba(255, 255, 255, 0.14);
+    }
+    .ambient-glow {
+      filter: blur(85px);
+      transition: all 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .toast-anim {
+      transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+  </style>
+</head>
+<body class="bg-[#09090b] text-[#f4f4f5] antialiased min-h-screen flex flex-col justify-between p-5 md:p-8 select-none overflow-hidden transition-all duration-500 font-sans">
+
+  <!-- Ambient Glow -->
+  <div class="fixed inset-0 pointer-events-none flex items-center justify-center overflow-hidden z-0">
+    <div id="ambientGlow" class="ambient-glow w-[380px] h-[380px] md:w-[480px] md:h-[480px] rounded-full bg-cyan-500/15"></div>
+  </div>
+
+  <!-- Notification Toast -->
+  <div id="toastNotification" class="toast-anim fixed top-6 left-1/2 -translate-x-1/2 z-50 pointer-events-none opacity-0 translate-y-[-12px] glass-pill px-4 py-2 rounded-full text-xs font-medium text-white shadow-2xl flex items-center gap-2">
+    <span id="toastDot" class="w-2 h-2 rounded-full bg-emerald-400"></span>
+    <span id="toastMsg">تمت المزامنة</span>
+  </div>
+
+  <!-- Minimal Header -->
+  <header class="relative z-20 flex flex-wrap items-center justify-between gap-4 w-full max-w-4xl mx-auto">
+    <!-- Brand / Status -->
+    <div class="flex items-center gap-3">
+      <div class="w-9 h-9 rounded-2xl bg-white/[0.06] flex items-center justify-center border border-white/10 shadow-sm">
+        <span id="wsStatusDot" class="w-2 h-2 rounded-full bg-amber-400 animate-pulse" title="Connecting..."></span>
+      </div>
+      <div>
+        <div class="flex items-center gap-2">
+          <h1 id="brandTitle" class="text-base font-semibold tracking-wide text-white">رفيق</h1>
+          <span id="modeBadge" class="text-[11px] font-medium px-2 py-0.5 rounded-full bg-blue-500/15 text-blue-400 border border-blue-500/30">
+            وضع الحاسوب
+          </span>
+        </div>
+        <p id="brandSub" class="text-xs text-zinc-400">مساعدك الصوتي الذكي</p>
+      </div>
+    </div>
+
+    <!-- Center: Operational Mode Switcher (PC vs ESP32) -->
+    <div class="glass-pill rounded-full p-1 flex items-center gap-1 shadow-lg shadow-black/40">
+      <!-- Mode 1: PC Direct -->
+      <button id="modePcBtn" onclick="setMode('pc')" class="px-3.5 py-1.5 text-xs font-medium rounded-full transition-all duration-300 bg-white/15 text-white flex items-center gap-1.5 shadow-sm">
+        <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+        </svg>
+        <span id="modePcLabel">الكمبيوتر (مباشر)</span>
+      </button>
+
+      <!-- Mode 2: ESP32 Hardware -->
+      <button id="modeEspBtn" onclick="setMode('esp')" class="px-3.5 py-1.5 text-xs font-medium rounded-full transition-all duration-300 text-zinc-400 hover:text-zinc-200 flex items-center gap-1.5">
+        <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
+        </svg>
+        <span id="modeEspLabel">جهاز ESP32</span>
+      </button>
+    </div>
+
+    <!-- Language Switcher Pill -->
+    <div class="glass-pill rounded-full p-1 flex items-center gap-1 shadow-lg shadow-black/40">
+      <button id="langAr" onclick="setLanguage('ar')" class="px-3.5 py-1.5 text-xs font-medium rounded-full transition-all duration-300 bg-white/15 text-white shadow-sm">
+        العربية
+      </button>
+      <button id="langEn" onclick="setLanguage('en')" class="px-3.5 py-1.5 text-xs font-medium rounded-full transition-all duration-300 text-zinc-400 hover:text-zinc-200">
+        English
+      </button>
+    </div>
+  </header>
+
+  <!-- Hardware Connection Bar (Visible only when in ESP32 Mode) -->
+  <div id="espDeviceBanner" class="relative z-20 w-full max-w-xl mx-auto my-1.5 hidden transition-all duration-300">
+    <div class="glass-pill px-4 py-2 rounded-2xl flex items-center justify-between text-xs border border-white/10 shadow-lg">
+      <div class="flex items-center gap-3">
+        <div class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></div>
+        <div>
+          <span id="deviceStatusText" class="font-medium text-white">جهاز رفيق جاهز للاتصال</span>
+          <span id="deviceIpDisplay" class="text-zinc-400 font-mono text-[11px] block md:inline md:ms-2">ws://localhost:8765</span>
+        </div>
+      </div>
+      <div class="flex items-center gap-2">
+        <button onclick="toggleDeviceModal()" class="px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/15 text-zinc-200 transition text-[11px]">
+          إعدادات السيرفر
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Center Stage: The Sound Sphere Visualizer -->
+  <main class="relative z-10 flex-1 flex flex-col items-center justify-center text-center my-auto py-2">
+    
+    <!-- Sound Sphere Container -->
+    <div class="relative flex items-center justify-center cursor-pointer group" onclick="handleSphereClick()" title="تفاعل مع رفيق">
+      
+      <!-- Canvas Visualizer -->
+      <canvas id="sphereCanvas" width="360" height="360" class="w-68 h-68 md:w-80 md:h-80 rounded-full transition-transform duration-300 group-hover:scale-[1.02] active:scale-[0.98]"></canvas>
+
+      <!-- Center Minimal Glyph -->
+      <div id="centerIcon" class="absolute pointer-events-none text-white/70 transition-opacity duration-500 flex items-center justify-center">
+        <!-- Mic Icon (in PC Mode) -->
+        <svg id="micIcon" class="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+        </svg>
+        <!-- Device Chip Icon (in ESP32 Mode) -->
+        <svg id="chipIcon" class="w-7 h-7 hidden text-emerald-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
+        </svg>
+      </div>
+    </div>
+
+    <!-- State Indicator & Subtitle Stream -->
+    <div class="mt-4 flex flex-col items-center gap-2">
+      <!-- State Pill -->
+      <div class="flex items-center gap-2 px-3 py-1 rounded-full bg-white/[0.04] border border-white/5">
+        <span id="stateDot" class="w-2 h-2 rounded-full bg-cyan-400"></span>
+        <span id="stateText" class="text-xs font-medium tracking-wider uppercase text-zinc-400">
+          جاهز
+        </span>
+      </div>
+
+      <!-- Dialogue Subtitle Stream -->
+      <div class="h-16 flex items-center justify-center px-4 max-w-xl">
+        <p id="captionText" class="text-base md:text-lg font-light text-zinc-200 transition-all duration-300 leading-relaxed">
+          اضغط على الدائرة أو استمر بالضغط على المسافة للتحدث
+        </p>
+      </div>
+
+      <!-- Mode Routing Audio Hint -->
+      <div id="routingHint" class="text-xs text-zinc-400 flex items-center gap-1.5 mt-0.5 font-mono">
+        <span class="w-1.5 h-1.5 rounded-full bg-cyan-400"></span>
+        <span id="routingHintText">الصوت والميكروفون نشطين عبر هذا التطبيق</span>
+      </div>
+    </div>
+  </main>
+
+  <!-- Bottom Floating Island: 3 Distinct Voices -->
+  <footer class="relative z-20 w-full max-w-lg mx-auto flex flex-col items-center gap-2.5">
+    
+    <!-- Voices Title & Selector -->
+    <div class="w-full flex flex-col items-center gap-1.5">
+      <div class="flex items-center justify-between w-full px-2 text-xs">
+        <span id="voiceHeaderLabel" class="font-medium tracking-wider uppercase text-zinc-400">صوت رفيق</span>
+        <span id="syncLabel" class="text-[11px] text-zinc-400">يُحفظ تلقائياً للجهاز</span>
+      </div>
+
+      <div class="glass-pill rounded-full p-1.5 flex items-center justify-between w-full shadow-2xl shadow-black/60">
+        
+        <!-- Voice 1: Shakir / Guy -->
+        <button onclick="setVoice('v1')" id="voice-v1" class="voice-btn flex-1 py-2 px-3 rounded-full text-xs font-medium transition-all duration-200 flex items-center justify-center gap-2 text-white bg-white/10 shadow-sm">
+          <span class="w-1.5 h-1.5 rounded-full bg-blue-400"></span>
+          <div class="flex flex-col items-start leading-tight">
+            <span id="v1Name" class="font-semibold">شاكر</span>
+            <span id="v1Desc" class="text-[11px] text-zinc-400">ودود ومصري</span>
+          </div>
+        </button>
+
+        <!-- Voice 2: Salma / Jenny -->
+        <button onclick="setVoice('v2')" id="voice-v2" class="voice-btn flex-1 py-2 px-3 rounded-full text-xs font-medium transition-all duration-200 flex items-center justify-center gap-2 text-zinc-400 hover:text-zinc-200">
+          <span class="w-1.5 h-1.5 rounded-full bg-pink-400 opacity-60"></span>
+          <div class="flex flex-col items-start leading-tight">
+            <span id="v2Name" class="font-semibold">سلمى</span>
+            <span id="v2Desc" class="text-[11px] text-zinc-400">مشرقة ونقية</span>
+          </div>
+        </button>
+
+        <!-- Voice 3: Kareem / Christopher -->
+        <button onclick="setVoice('v3')" id="voice-v3" class="voice-btn flex-1 py-2 px-3 rounded-full text-xs font-medium transition-all duration-200 flex items-center justify-center gap-2 text-zinc-400 hover:text-zinc-200">
+          <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 opacity-60"></span>
+          <div class="flex flex-col items-start leading-tight">
+            <span id="v3Name" class="font-semibold">كريم</span>
+            <span id="v3Desc" class="text-[11px] text-zinc-400">رصين وهادئ</span>
+          </div>
+        </button>
+
+      </div>
+    </div>
+
+    <!-- Bottom Controls & Shortcut / Interruption Hint -->
+    <div class="flex items-center gap-3 text-xs text-zinc-400 font-mono">
+      <span id="keyHint">[Space] للتحدث</span>
+      <span>•</span>
+      <span id="bargeinHint">المقاطعة التلقائية مفعلة</span>
+    </div>
+  </footer>
+
+  <!-- Server Connection Settings Modal -->
+  <div id="deviceModal" class="fixed inset-0 z-50 bg-black/70 backdrop-blur-md flex items-center justify-center p-4 hidden">
+    <div class="glass-pill max-w-sm w-full p-6 rounded-3xl border border-white/10 shadow-2xl space-y-4">
+      <div class="flex items-center justify-between border-b border-white/10 pb-3">
+        <h3 id="modalTitle" class="font-semibold text-white text-sm">إعدادات خادم رفيق</h3>
+        <button onclick="toggleDeviceModal()" class="text-zinc-400 hover:text-white text-xs">✕ إغلاق</button>
+      </div>
+
+      <div class="space-y-3 text-xs">
+        <div>
+          <label id="modalUrlLabel" class="block text-zinc-400 mb-1">عنوان WebSocket:</label>
+          <input id="serverUrlInput" type="text" value="ws://localhost:8765" class="w-full px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-white font-mono focus:outline-none focus:border-cyan-400">
+        </div>
+      </div>
+
+      <div class="pt-2 flex items-center gap-2">
+        <button onclick="saveServerConfig()" class="flex-1 py-2 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-white font-medium text-xs transition">
+          حفظ وإعادة الاتصال
+        </button>
+        <button onclick="toggleDeviceModal()" class="px-4 py-2 rounded-xl bg-white/10 text-zinc-300 text-xs hover:bg-white/15 transition">
+          إلغاء
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // System State
+    let currentMode = 'pc';       // 'pc' (browser mic/speaker) | 'esp' (hardware companion)
+    let currentState = 'idle';     // 'idle' | 'listening' | 'thinking' | 'speaking'
+    let currentLang = 'ar';
+    let currentVoice = 'v1';
+    let targetEnergy = 0.1;
+    let currentEnergy = 0.1;
+    let orbitAngle = 0;
+
+    // WebSocket & Audio Infrastructure
+    let ws = null;
+    let wsUrl = 'ws://' + (window.location.hostname || 'localhost') + ':8765';
+    let audioCtx = null;
+    let micStream = null;
+    let micSource = null;
+    let micProcessor = null;
+    let analyser = null;
+    let nextAudioPlayTime = 0;
+    let isMicActive = false;
+
+    // Bilingual Data Dictionary
+    const content = {
+      ar: {
+        dir: 'rtl',
+        brandTitle: 'رفيق',
+        brandSub: 'مساعدك الصوتي الذكي',
+        modePc: 'الكمبيوتر (مباشر)',
+        modeEsp: 'جهاز ESP32',
+        modeBadgePc: 'وضع الحاسوب',
+        modeBadgeEsp: 'وضع جهاز رفيق',
+        voiceHeader: 'اختيار صوت رفيق',
+        syncLabel: 'يُحفظ تلقائياً للجهاز',
+        deviceConnected: 'جهاز رفيق متصل بالسيرفر',
+        routingPc: 'الصوت والميكروفون نشطين عبر هذا التطبيق',
+        routingEsp: 'الصوت والميكروفون يعملان عبر عتاد ESP32 فقط',
+        ready: 'جاهز للتحدث',
+        listening: 'أستمع إليك الآن...',
+        thinking: 'جاري التفكير...',
+        speaking: 'يتحدث الآن...',
+        promptPc: 'اضغط على الدائرة أو استمر بالضغط على المسافة للتحدث',
+        promptEsp: 'تحكّم عبر زر الجهاز أو كلمة التنبيه الصوتية',
+        keyHintPc: '[Space] للتحدث',
+        keyHintEsp: 'المدخلات من أزرار ESP32',
+        bargein: 'يدعم المقاطعة التلقائية المباشرة',
+        toastSync: 'تم تحديث إعدادات الصوت واللغة في الخادم',
+        v1: { name: 'شاكر', desc: 'ودود ومصري' },
+        v2: { name: 'سلمى', desc: 'مشرقة ونقية' },
+        v3: { name: 'كريم', desc: 'رصين وهادئ' }
+      },
+      en: {
+        dir: 'ltr',
+        brandTitle: 'Rafiq',
+        brandSub: 'Intelligent Voice Companion',
+        modePc: 'PC Direct',
+        modeEsp: 'ESP32 Device',
+        modeBadgePc: 'PC Mode',
+        modeBadgeEsp: 'ESP32 Companion Mode',
+        voiceHeader: "Rafiq's Voice Persona",
+        syncLabel: 'Auto-syncs with server',
+        deviceConnected: 'Rafiq ESP32 Connected to Server',
+        routingPc: 'Audio input/output active via this application',
+        routingEsp: 'Audio input & output routed via ESP32 hardware only',
+        ready: 'Ready',
+        listening: 'Listening to you...',
+        thinking: 'Thinking...',
+        speaking: 'Speaking...',
+        promptPc: 'Tap the sphere or hold Space to talk',
+        promptEsp: 'Control via physical ESP32 button or wake word',
+        keyHintPc: '[Space] to talk',
+        keyHintEsp: 'Input via ESP32 buttons',
+        bargein: 'Barge-in enabled',
+        toastSync: 'Voice & language synced with server',
+        v1: { name: 'Guy', desc: 'Casual & Warm' },
+        v2: { name: 'Jenny', desc: 'Bright & Clear' },
+        v3: { name: 'Kareem', desc: 'Calm & Articulate' }
+      }
+    };
+
+    // Canvas Visualizer
+    const canvas = document.getElementById('sphereCanvas');
+    const ctx = canvas.getContext('2d');
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = 360 * dpr;
+    canvas.height = 360 * dpr;
+    ctx.scale(dpr, dpr);
+
+    function initAudioContext() {
+      if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
+        analyser = audioCtx.createAnalyser();
+        analyser.fftSize = 64;
+      }
+      if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
+      }
+    }
+
+    function renderSphere() {
+      const width = 360;
+      const height = 360;
+      const cx = width / 2;
+      const cy = height / 2;
+      const baseRadius = 76;
+
+      ctx.clearRect(0, 0, width, height);
+
+      // Read real audio frequency if analyser is active
+      if (analyser && (currentState === 'listening' || currentState === 'speaking')) {
+        const dataArray = new Uint8Array(analyser.frequencyBinCount);
+        analyser.getByteFrequencyData(dataArray);
+        let sum = 0;
+        for (let i = 0; i < dataArray.length; i++) sum += dataArray[i];
+        const avg = sum / dataArray.length;
+        targetEnergy = Math.max(0.15, avg / 128.0);
+      }
+
+      currentEnergy += (targetEnergy - currentEnergy) * 0.12;
+
+      let colorCore, colorMid, colorEdge, ringColor;
+      if (currentState === 'listening') {
+        colorCore = 'rgba(255, 255, 255, 0.95)';
+        colorMid = 'rgba(6, 182, 212, 0.85)';
+        colorEdge = 'rgba(16, 185, 129, 0.35)';
+        ringColor = 'rgba(6, 182, 212, ';
+      } else if (currentState === 'thinking') {
+        colorCore = 'rgba(255, 255, 255, 0.95)';
+        colorMid = 'rgba(168, 85, 247, 0.85)';
+        colorEdge = 'rgba(236, 72, 153, 0.35)';
+        ringColor = 'rgba(192, 132, 252, ';
+        targetEnergy = 0.2 + Math.sin(Date.now() / 220) * 0.1;
+      } else if (currentState === 'speaking') {
+        colorCore = 'rgba(255, 255, 255, 0.95)';
+        colorMid = 'rgba(59, 130, 246, 0.9)';
+        colorEdge = 'rgba(99, 102, 241, 0.4)';
+        ringColor = 'rgba(96, 165, 250, ';
+      } else {
+        colorCore = 'rgba(255, 255, 255, 0.85)';
+        colorMid = currentMode === 'esp' ? 'rgba(16, 185, 129, 0.75)' : 'rgba(99, 102, 241, 0.75)';
+        colorEdge = currentMode === 'esp' ? 'rgba(6, 182, 212, 0.2)' : 'rgba(14, 165, 233, 0.2)';
+        ringColor = currentMode === 'esp' ? 'rgba(16, 185, 129, ' : 'rgba(99, 102, 241, ';
+        targetEnergy = 0.08 + Math.sin(Date.now() / 800) * 0.04;
+      }
+
+      const sphereRadius = baseRadius + (currentEnergy * 16);
+
+      // Concentric soundwaves
+      if (currentState === 'listening' || currentState === 'speaking') {
+        for (let i = 1; i <= 3; i++) {
+          const r = sphereRadius + (i * 24 * (currentEnergy + 0.3));
+          const alpha = Math.max(0, (1 - (i / 3.8)) * 0.4 * currentEnergy);
+          ctx.beginPath();
+          ctx.arc(cx, cy, r, 0, Math.PI * 2);
+          ctx.strokeStyle = ringColor + alpha + ')';
+          ctx.lineWidth = 1.8;
+          ctx.stroke();
+        }
+      }
+
+      // Orbital light ring when thinking
+      if (currentState === 'thinking') {
+        orbitAngle += 0.045;
+        ctx.beginPath();
+        ctx.arc(cx, cy, sphereRadius + 14, orbitAngle, orbitAngle + Math.PI * 0.85);
+        ctx.strokeStyle = 'rgba(216, 180, 254, 0.7)';
+        ctx.lineWidth = 3;
+        ctx.lineCap = 'round';
+        ctx.stroke();
+      }
+
+      // Main Luminous Sphere
+      ctx.beginPath();
+      ctx.arc(cx, cy, sphereRadius, 0, Math.PI * 2);
+      
+      const grad = ctx.createRadialGradient(
+        cx - sphereRadius * 0.32,
+        cy - sphereRadius * 0.32,
+        sphereRadius * 0.05,
+        cx,
+        cy,
+        sphereRadius
+      );
+      grad.addColorStop(0, colorCore);
+      grad.addColorStop(0.35, colorMid);
+      grad.addColorStop(0.85, colorEdge);
+      grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+      
+      ctx.fillStyle = grad;
+      ctx.fill();
+
+      requestAnimationFrame(renderSphere);
+    }
+
+    // Connect WebSocket
+    function connectWebSocket() {
+      const dot = document.getElementById('wsStatusDot');
+      try {
+        ws = new WebSocket(wsUrl);
+        ws.binaryType = 'arraybuffer';
+
+        ws.onopen = () => {
+          console.log('[WS] Connected to Rafiq server at', wsUrl);
+          dot.className = "w-2 h-2 rounded-full bg-emerald-400";
+          dot.title = "Connected to Rafiq Server";
+          // Sync current initial state
+          ws.send(JSON.stringify({ type: 'set_language', language: currentLang }));
+          ws.send(JSON.stringify({ type: 'set_voice', voice: currentVoice }));
+        };
+
+        ws.onclose = () => {
+          console.log('[WS] Disconnected, retrying in 3s...');
+          dot.className = "w-2 h-2 rounded-full bg-rose-500 animate-pulse";
+          dot.title = "Disconnected. Retrying...";
+          setTimeout(connectWebSocket, 3000);
+        };
+
+        ws.onerror = (err) => {
+          console.warn('[WS] Socket error:', err);
+          dot.className = "w-2 h-2 rounded-full bg-rose-500";
+        };
+
+        ws.onmessage = (event) => {
+          if (typeof event.data === 'string') {
+            const data = JSON.parse(event.data);
+            handleServerMessage(data);
+          } else if (event.data instanceof ArrayBuffer) {
+            // Audio binary chunk received (in PC Mode only)
+            if (currentMode === 'pc') {
+              playPcmAudio(event.data);
+            }
+          }
+        };
+      } catch (e) {
+        console.error('[WS] Connection failed:', e);
+        setTimeout(connectWebSocket, 3000);
+      }
+    }
+
+    function handleServerMessage(data) {
+      console.log('[Server Msg]', data);
+      if (data.type === 'state') {
+        setState(data.state);
+      } else if (data.type === 'transcript') {
+        const caption = document.getElementById('captionText');
+        if (data.role === 'user') {
+          caption.innerText = `« ${data.text} »`;
+        } else {
+          caption.innerText = `« ${data.text} »`;
+        }
+      } else if (data.type === 'language_changed') {
+        // Updated on server
+      } else if (data.type === 'voice_changed') {
+        // Updated on server
+      } else if (data.type === 'tts_end') {
+        // TTS finished
+      }
+    }
+
+    // Play PCM audio chunk in PC mode
+    function playPcmAudio(arrayBuffer) {
+      initAudioContext();
+      const int16 = new Int16Array(arrayBuffer);
+      const float32 = new Float32Array(int16.length);
+      for (let i = 0; i < int16.length; i++) {
+        float32[i] = int16[i] / 32768.0;
+      }
+      const buffer = audioCtx.createBuffer(1, float32.length, 16000);
+      buffer.copyToChannel(float32, 0);
+
+      const source = audioCtx.createBufferSource();
+      source.buffer = buffer;
+      source.connect(analyser);
+      analyser.connect(audioCtx.destination);
+
+      const now = audioCtx.currentTime;
+      if (nextAudioPlayTime < now) nextAudioPlayTime = now;
+      source.start(nextAudioPlayTime);
+      nextAudioPlayTime += buffer.duration;
+    }
+
+    // Microphone capture (PC Mode)
+    async function startRecording() {
+      initAudioContext();
+      try {
+        if (!micStream) {
+          micStream = await navigator.mediaDevices.getUserMedia({
+            audio: { sampleRate: 16000, channelCount: 1, echoCancellation: true, noiseSuppression: true }
+          });
+        }
+        micSource = audioCtx.createMediaStreamSource(micStream);
+        micSource.connect(analyser);
+
+        micProcessor = audioCtx.createScriptProcessor(2048, 1, 1);
+        micProcessor.onaudioprocess = (e) => {
+          if (!isMicActive) return;
+          const inputData = e.inputBuffer.getChannelData(0);
+          const pcm16 = new Int16Array(inputData.length);
+          for (let i = 0; i < inputData.length; i++) {
+            pcm16[i] = Math.max(-1, Math.min(1, inputData[i])) * 0x7FFF;
+          }
+          if (ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(pcm16.buffer);
+          }
+        };
+
+        micSource.connect(micProcessor);
+        micProcessor.connect(audioCtx.destination);
+
+        isMicActive = true;
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: 'start', language: currentLang, voice: currentVoice }));
+        }
+        setState('listening');
+      } catch (err) {
+        console.error('[Mic Error]', err);
+        showToast(currentLang === 'ar' ? 'يرجى السماح بالوصول للميكروفون' : 'Please allow microphone access');
+      }
+    }
+
+    function stopRecording() {
+      if (!isMicActive) return;
+      isMicActive = false;
+      if (micProcessor) {
+        micProcessor.disconnect();
+        micProcessor = null;
+      }
+      if (micSource) {
+        micSource.disconnect();
+        micSource = null;
+      }
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'end' }));
+      }
+    }
+
+    // Mode Switcher: 'pc' vs 'esp'
+    function setMode(mode) {
+      currentMode = mode;
+      const t = content[currentLang];
+      const pcBtn = document.getElementById('modePcBtn');
+      const espBtn = document.getElementById('modeEspBtn');
+      const banner = document.getElementById('espDeviceBanner');
+      const badge = document.getElementById('modeBadge');
+      const routingHint = document.getElementById('routingHintText');
+      const micIcon = document.getElementById('micIcon');
+      const chipIcon = document.getElementById('chipIcon');
+      const keyHint = document.getElementById('keyHint');
+
+      if (mode === 'esp') {
+        if (isMicActive) stopRecording();
+        espBtn.className = "px-3.5 py-1.5 text-xs font-medium rounded-full transition-all duration-300 bg-white/15 text-white flex items-center gap-1.5 shadow-sm";
+        pcBtn.className = "px-3.5 py-1.5 text-xs font-medium rounded-full transition-all duration-300 text-zinc-400 hover:text-zinc-200 flex items-center gap-1.5";
+        banner.classList.remove('hidden');
+        badge.innerText = t.modeBadgeEsp;
+        badge.className = "text-[11px] font-medium px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30";
+        routingHint.innerText = t.routingEsp;
+        micIcon.classList.add('hidden');
+        chipIcon.classList.remove('hidden');
+        keyHint.innerText = t.keyHintEsp;
+        showToast(t.toastSync);
+      } else {
+        pcBtn.className = "px-3.5 py-1.5 text-xs font-medium rounded-full transition-all duration-300 bg-white/15 text-white flex items-center gap-1.5 shadow-sm";
+        espBtn.className = "px-3.5 py-1.5 text-xs font-medium rounded-full transition-all duration-300 text-zinc-400 hover:text-zinc-200 flex items-center gap-1.5";
+        banner.classList.add('hidden');
+        badge.innerText = t.modeBadgePc;
+        badge.className = "text-[11px] font-medium px-2 py-0.5 rounded-full bg-blue-500/15 text-blue-400 border border-blue-500/30";
+        routingHint.innerText = t.routingPc;
+        micIcon.classList.remove('hidden');
+        chipIcon.classList.add('hidden');
+        keyHint.innerText = t.keyHintPc;
+      }
+
+      setState(currentState);
+    }
+
+    // State Transitions
+    function setState(state) {
+      currentState = state;
+      const t = content[currentLang];
+      const stateText = document.getElementById('stateText');
+      const stateDot = document.getElementById('stateDot');
+      const captionText = document.getElementById('captionText');
+      const ambientGlow = document.getElementById('ambientGlow');
+      const centerIcon = document.getElementById('centerIcon');
+
+      if (state === 'listening') {
+        stateText.innerText = t.listening;
+        stateText.className = "text-xs font-medium tracking-wider uppercase text-cyan-400";
+        stateDot.className = "w-2 h-2 rounded-full bg-cyan-400 animate-ping";
+        ambientGlow.className = "ambient-glow w-[420px] h-[420px] rounded-full bg-cyan-500/25";
+        centerIcon.style.opacity = '0';
+      } else if (state === 'thinking') {
+        stateText.innerText = t.thinking;
+        stateText.className = "text-xs font-medium tracking-wider uppercase text-purple-400";
+        stateDot.className = "w-2 h-2 rounded-full bg-purple-400 animate-spin";
+        ambientGlow.className = "ambient-glow w-[420px] h-[420px] rounded-full bg-purple-500/25";
+        centerIcon.style.opacity = '0';
+      } else if (state === 'speaking') {
+        stateText.innerText = t.speaking;
+        stateText.className = "text-xs font-medium tracking-wider uppercase text-blue-400";
+        stateDot.className = "w-2 h-2 rounded-full bg-blue-400 animate-pulse";
+        ambientGlow.className = "ambient-glow w-[460px] h-[460px] rounded-full bg-blue-500/30";
+        centerIcon.style.opacity = '0';
+      } else { // idle
+        stateText.innerText = t.ready;
+        stateText.className = "text-xs font-medium tracking-wider uppercase text-zinc-400";
+        stateDot.className = currentMode === 'esp' ? "w-2 h-2 rounded-full bg-emerald-400" : "w-2 h-2 rounded-full bg-cyan-400";
+        captionText.innerText = currentMode === 'esp' ? t.promptEsp : t.promptPc;
+        ambientGlow.className = currentMode === 'esp' ? "ambient-glow w-[380px] h-[380px] rounded-full bg-emerald-500/15" : "ambient-glow w-[380px] h-[380px] rounded-full bg-indigo-500/15";
+        centerIcon.style.opacity = '0.85';
+      }
+    }
+
+    // Sphere Interaction
+    function handleSphereClick() {
+      if (currentMode === 'esp') {
+        showToast(currentLang === 'ar' ? 'التحكم الصوتي نشط من أزرار جهاز ESP32' : 'Voice is controlled via physical ESP32 buttons');
+        return;
+      }
+      // PC Mode: Push to talk toggle
+      if (currentState === 'idle') {
+        startRecording();
+      } else if (currentState === 'listening') {
+        stopRecording();
+      } else if (currentState === 'speaking' || currentState === 'thinking') {
+        // Barge-in
+        nextAudioPlayTime = 0;
+        startRecording();
+      }
+    }
+
+    // Voice Selection (3 voices)
+    function setVoice(vId) {
+      currentVoice = vId;
+      ['v1', 'v2', 'v3'].forEach(id => {
+        const btn = document.getElementById(`voice-${id}`);
+        if (id === vId) {
+          btn.className = "voice-btn flex-1 py-2 px-3 rounded-full text-xs font-medium transition-all duration-200 flex items-center justify-center gap-2 text-white bg-white/10 shadow-sm";
+        } else {
+          btn.className = "voice-btn flex-1 py-2 px-3 rounded-full text-xs font-medium transition-all duration-200 flex items-center justify-center gap-2 text-zinc-400 hover:text-zinc-200";
+        }
+      });
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'set_voice', voice: currentVoice }));
+      }
+      showToast(content[currentLang].toastSync);
+    }
+
+    // Language Toggle
+    function setLanguage(lang) {
+      currentLang = lang;
+      const t = content[lang];
+      document.body.setAttribute('dir', t.dir);
+      document.documentElement.setAttribute('lang', lang);
+
+      const arBtn = document.getElementById('langAr');
+      const enBtn = document.getElementById('langEn');
+      if (lang === 'ar') {
+        arBtn.className = "px-3.5 py-1.5 text-xs font-medium rounded-full bg-white/15 text-white shadow-sm";
+        enBtn.className = "px-3.5 py-1.5 text-xs font-medium rounded-full text-zinc-400 hover:text-zinc-200";
+      } else {
+        enBtn.className = "px-3.5 py-1.5 text-xs font-medium rounded-full bg-white/15 text-white shadow-sm";
+        arBtn.className = "px-3.5 py-1.5 text-xs font-medium rounded-full text-zinc-400 hover:text-zinc-200";
+      }
+
+      document.getElementById('brandTitle').innerText = t.brandTitle;
+      document.getElementById('brandSub').innerText = t.brandSub;
+      document.getElementById('modePcLabel').innerText = t.modePc;
+      document.getElementById('modeEspLabel').innerText = t.modeEsp;
+      document.getElementById('voiceHeaderLabel').innerText = t.voiceHeader;
+      document.getElementById('syncLabel').innerText = t.syncLabel;
+      document.getElementById('deviceStatusText').innerText = t.deviceConnected;
+      document.getElementById('bargeinHint').innerText = t.bargein;
+
+      document.getElementById('v1Name').innerText = t.v1.name;
+      document.getElementById('v1Desc').innerText = t.v1.desc;
+      document.getElementById('v2Name').innerText = t.v2.name;
+      document.getElementById('v2Desc').innerText = t.v2.desc;
+      document.getElementById('v3Name').innerText = t.v3.name;
+      document.getElementById('v3Desc').innerText = t.v3.desc;
+
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'set_language', language: currentLang }));
+      }
+
+      setMode(currentMode);
+    }
+
+    // Toast helper
+    let toastTimeout;
+    function showToast(msg) {
+      const toast = document.getElementById('toastNotification');
+      const toastMsg = document.getElementById('toastMsg');
+      toastMsg.innerText = msg;
+      toast.classList.remove('opacity-0', 'translate-y-[-12px]');
+      toast.classList.add('opacity-100', 'translate-y-0');
+      clearTimeout(toastTimeout);
+      toastTimeout = setTimeout(() => {
+        toast.classList.remove('opacity-100', 'translate-y-0');
+        toast.classList.add('opacity-0', 'translate-y-[-12px]');
+      }, 2500);
+    }
+
+    // Modal
+    function toggleDeviceModal() {
+      const m = document.getElementById('deviceModal');
+      m.classList.toggle('hidden');
+    }
+
+    function saveServerConfig() {
+      const input = document.getElementById('serverUrlInput');
+      wsUrl = input.value.trim() || wsUrl;
+      document.getElementById('deviceIpDisplay').innerText = wsUrl;
+      toggleDeviceModal();
+      if (ws) ws.close();
+      connectWebSocket();
+    }
+
+    // Spacebar shortcut
+    window.addEventListener('keydown', (e) => {
+      if (e.code === 'Space' && e.target === document.body) {
+        e.preventDefault();
+        handleSphereClick();
+      }
+    });
+
+    // Start
+    setLanguage('ar');
+    setVoice('v1');
+    setMode('pc');
+    connectWebSocket();
+    renderSphere();
+  </script>
+</body>
+</html>

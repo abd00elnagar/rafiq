@@ -16,10 +16,15 @@ pip install -r requirements.txt
 - Copy `.env.example` to `.env`
 - Set your key: `OPENROUTER_API_KEY=your_key`
 
-3. Run Server and Simulator Client:
+3. Run the Modern PyQt6 Voice UI Application:
 ```bash
-python -m server.server              # Terminal 1 (Server)
-python sim_client/sim_client.py      # Terminal 2 (PC Simulator Client)
+python main.py              # Opens the modern PyQt6 desktop app (auto-starts backend server)
+```
+
+To run the web version or CLI simulator:
+```bash
+python run_ui.py --browser           # Web UI in browser
+python sim_client/sim_client.py      # Terminal CLI Client
 ```
 
 To test the LLM standalone:
@@ -33,8 +38,10 @@ python -m server.llm
 **Client -> Server (text/JSON):**
 | Message | Meaning |
 |---|---|
-| `{"type":"start"}` | User started speaking (binary audio frames stream after) |
+| `{"type":"start","language":"ar","voice":"v1"}` | User started speaking (binary audio frames stream after) |
 | `{"type":"end"}` | Finished speaking, begin processing pipeline |
+| `{"type":"set_language","language":"ar/en"}` | Switch active conversation language |
+| `{"type":"set_voice","voice":"v1/v2/v3"}` | Switch voice persona (v1: Shakir, v2: Salma, v3: Kareem) |
 
 **Server -> Client:**
 | Message | Meaning |
